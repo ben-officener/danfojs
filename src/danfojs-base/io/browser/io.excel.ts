@@ -12,18 +12,14 @@
 * limitations under the License.
 * ==========================================================================
 */
+import { read, utils, writeFile } from "xlsx";
+import { DataFrame, NDframe, Series } from "../../";
 import {
-    ArrayType1D,
-    ArrayType2D,
-    ExcelOutputOptionsBrowser,
-    ExcelInputOptionsBrowser
-} from "../../shared/types"
-import { DataFrame, NDframe, Series } from '../../'
-import {
-    read,
-    writeFile,
-    utils
-} from "xlsx";
+  ArrayType1D,
+  ArrayType2D,
+  ExcelInputOptionsBrowser,
+  ExcelOutputOptionsBrowser,
+} from "../../shared/types";
 
 /**
  * Reads a JSON file from local or remote location into a DataFrame.
@@ -49,49 +45,55 @@ import {
  * ```
  */
 const $readExcel = async (file: any, options?: ExcelInputOptionsBrowser) => {
-    const {
-        sheet,
-        method,
-        headers,
-        frameConfig,
-        parsingOptions
-    } = { sheet: 0, method: "GET", headers: {}, frameConfig: {}, parsingOptions: {}, ...options }
+  const { sheet, method, headers, frameConfig, parsingOptions } = {
+    sheet: 0,
+    method: "GET",
+    headers: {},
+    frameConfig: {},
+    parsingOptions: {},
+    ...options,
+  };
 
-    if (typeof file === "string" && file.startsWith("http")) {
-
-        return new Promise(resolve => {
-            fetch(file, { method, headers }).then(response => {
-                if (response.status !== 200) {
-                    throw new Error(`Failed to load ${file}`)
-                }
-                response.arrayBuffer().then(arrBuf => {
-                    const arrBufInt8 = new Uint8Array(arrBuf);
-                    const workbook = read(arrBufInt8, { type: "array", ...parsingOptions });
-                    const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
-                    const data = utils.sheet_to_json(worksheet);
-                    const df = new DataFrame(data, frameConfig);
-                    resolve(df);
-                });
-            }).catch((err) => {
-                throw new Error(err)
-            })
+  if (typeof file === "string" && file.startsWith("http")) {
+    return new Promise((resolve) => {
+      fetch(file, { method, headers })
+        .then((response) => {
+          if (response.status !== 200) {
+            throw new Error(`Failed to load ${file}`);
+          }
+          response.arrayBuffer().then((arrBuf) => {
+            const arrBufInt8 = new Uint8Array(arrBuf);
+            const workbook = read(arrBufInt8, {
+              type: "array",
+              ...parsingOptions,
+            });
+            const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
+            const data = utils.sheet_to_json(worksheet, { defval: "" });
+            const df = new DataFrame(data, frameConfig);
+            resolve(df);
+          });
         })
-
-    } else if (file instanceof File) {
-        const arrBuf = await file.arrayBuffer()
-        const arrBufInt8 = new Uint8Array(arrBuf);
-        const workbook = read(arrBufInt8, { type: "array", ...parsingOptions });
-        const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
-        const data = utils.sheet_to_json(worksheet);
-        const df = new DataFrame(data, frameConfig);
-        return df;
-    } else {
-        throw new Error("ParamError: File not supported. file must be a url or an input File object")
-    }
+        .catch((err) => {
+          throw new Error(err);
+        });
+    });
+  } else if (file instanceof File) {
+    const arrBuf = await file.arrayBuffer();
+    const arrBufInt8 = new Uint8Array(arrBuf);
+    const workbook = read(arrBufInt8, { type: "array", ...parsingOptions });
+    const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
+    const data = utils.sheet_to_json(worksheet);
+    const df = new DataFrame(data, frameConfig);
+    return df;
+  } else {
+    throw new Error(
+      "ParamError: File not supported. file must be a url or an input File object"
+    );
+  }
 };
 
 /**
- * Converts a DataFrame or Series to Excel Sheet. 
+ * Converts a DataFrame or Series to Excel Sheet.
  * @param df DataFrame or Series to be converted to JSON.
  * @param options Configuration object. Supported options:
  * - `sheetName`: The sheet name to be written to. Defaults to `'Sheet1'`.
@@ -106,35 +108,35 @@ const $readExcel = async (file: any, options?: ExcelInputOptionsBrowser) => {
  *   })
  * ```
  */
-const $toExcel = (df: NDframe | DataFrame | Series, options?: ExcelOutputOptionsBrowser) => {
-    let {
-        fileName,
-        sheetName,
-        writingOptions
-    } = { fileName: "./output.xlsx", sheetName: "Sheet1", ...options }
+const $toExcel = (
+  df: NDframe | DataFrame | Series,
+  options?: ExcelOutputOptionsBrowser
+) => {
+  let { fileName, sheetName, writingOptions } = {
+    fileName: "./output.xlsx",
+    sheetName: "Sheet1",
+    ...options,
+  };
 
-    if (!(fileName.endsWith(".xlsx"))) {
-        fileName = fileName + ".xlsx"
-    }
-    let data;
+  if (!fileName.endsWith(".xlsx")) {
+    fileName = fileName + ".xlsx";
+  }
+  let data;
 
-    if (df.$isSeries) {
-        const row = df.values as ArrayType1D
-        const col = df.columns
-        data = [col, ...(row.map(x => [x]))]
-    } else {
-        const row = df.values as ArrayType2D
-        const cols = df.columns
-        data = [cols, ...row]
-    }
+  if (df.$isSeries) {
+    const row = df.values as ArrayType1D;
+    const col = df.columns;
+    data = [col, ...row.map((x) => [x])];
+  } else {
+    const row = df.values as ArrayType2D;
+    const cols = df.columns;
+    data = [cols, ...row];
+  }
 
-    const worksheet = utils.aoa_to_sheet(data);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, worksheet, sheetName);
-    writeFile(wb, `${fileName}`, writingOptions)
+  const worksheet = utils.aoa_to_sheet(data);
+  const wb = utils.book_new();
+  utils.book_append_sheet(wb, worksheet, sheetName);
+  writeFile(wb, `${fileName}`, writingOptions);
 };
 
-export {
-    $readExcel,
-    $toExcel
-}
+export { $readExcel, $toExcel };
