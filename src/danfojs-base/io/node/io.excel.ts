@@ -96,7 +96,7 @@ const $readExcel = async (
 
         const workbook = readFile(filePath, parsingOptions);
         const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
-        const data = utils.sheet_to_json(worksheet);
+        const data = utils.sheet_to_json(worksheet, { defval: "" });
         const df = new DataFrame(data, frameConfig);
         resolve(df);
       });
