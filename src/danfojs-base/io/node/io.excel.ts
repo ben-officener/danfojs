@@ -12,16 +12,16 @@
 * limitations under the License.
 * ==========================================================================
 */
-import { ArrayType1D, ArrayType2D, ExcelInputOptionsNode, ExcelOutputOptionsNode } from "../../shared/types"
-import { DataFrame, NDframe, Series } from '../../'
+import fs from "fs";
 import fetch from "node-fetch";
+import { read, readFile, utils, writeFile } from "xlsx";
+import { DataFrame, NDframe, Series } from "../../";
 import {
-    read,
-    writeFile,
-    readFile,
-    utils
-} from "xlsx";
-import fs from 'fs'
+  ArrayType1D,
+  ArrayType2D,
+  ExcelInputOptionsNode,
+  ExcelOutputOptionsNode,
+} from "../../shared/types";
 
 /**
  * Reads a JSON file from local or remote location into a DataFrame.
@@ -51,54 +51,61 @@ import fs from 'fs'
  * const df = await readExcel("./data/sample.xlsx")
  * ```
  */
-const $readExcel = async (filePath: string, options: ExcelInputOptionsNode = {}) => {
-    const {
-        sheet,
-        method,
-        headers,
-        frameConfig,
-        parsingOptions
-    } = { sheet: 0, method: "GET", headers: {}, frameConfig: {}, parsingOptions: {}, ...options }
+const $readExcel = async (
+  filePath: string,
+  options: ExcelInputOptionsNode = {}
+) => {
+  const { sheet, method, headers, frameConfig, parsingOptions } = {
+    sheet: 0,
+    method: "GET",
+    headers: {},
+    frameConfig: {},
+    parsingOptions: {},
+    ...options,
+  };
 
-    if (filePath.startsWith("http") || filePath.startsWith("https")) {
-
-        return new Promise((resolve, reject) => {
-            fetch(filePath, { method, headers }).then(response => {
-                if (response.status !== 200) {
-                    throw new Error(`Failed to load ${filePath}`)
-                }
-                response.arrayBuffer().then(arrBuf => {
-                    const arrBufInt8 = new Uint8Array(arrBuf);
-                    const workbook = read(arrBufInt8, { type: "array", ...parsingOptions });
-                    const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
-                    const data = utils.sheet_to_json(worksheet);
-                    const df = new DataFrame(data, frameConfig);
-                    resolve(df);
-                });
-            }).catch((err) => {
-                reject(err)
-            })
+  if (filePath.startsWith("http") || filePath.startsWith("https")) {
+    return new Promise((resolve, reject) => {
+      fetch(filePath, { method, headers })
+        .then((response) => {
+          if (response.status !== 200) {
+            throw new Error(`Failed to load ${filePath}`);
+          }
+          response.arrayBuffer().then((arrBuf) => {
+            const arrBufInt8 = new Uint8Array(arrBuf);
+            const workbook = read(arrBufInt8, {
+              type: "array",
+              ...parsingOptions,
+            });
+            const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
+            const data = utils.sheet_to_json(worksheet, { defval: "" });
+            const df = new DataFrame(data, frameConfig);
+            resolve(df);
+          });
         })
-
-    } else {
-        return new Promise((resolve, reject) => {
-            fs.access(filePath, fs.constants.F_OK, (err) => {
-                if (err) {
-                    reject("ENOENT: no such file or directory");
-                }
-
-                const workbook = readFile(filePath, parsingOptions);
-                const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
-                const data = utils.sheet_to_json(worksheet);
-                const df = new DataFrame(data, frameConfig);
-                resolve(df);
-            })
+        .catch((err) => {
+          reject(err);
         });
-    }
+    });
+  } else {
+    return new Promise((resolve, reject) => {
+      fs.access(filePath, fs.constants.F_OK, (err) => {
+        if (err) {
+          reject("ENOENT: no such file or directory");
+        }
+
+        const workbook = readFile(filePath, parsingOptions);
+        const worksheet = workbook.Sheets[workbook.SheetNames[sheet]];
+        const data = utils.sheet_to_json(worksheet, { defval: "" });
+        const df = new DataFrame(data, frameConfig);
+        resolve(df);
+      });
+    });
+  }
 };
 
 /**
- * Converts a DataFrame or Series to Excel Sheet. 
+ * Converts a DataFrame or Series to Excel Sheet.
  * @param df DataFrame or Series to be converted to JSON.
  * @param options Configuration object. Supported options:
  * - `sheetName`: The sheet name to be written to. Defaults to `'Sheet1'`.
@@ -113,35 +120,35 @@ const $readExcel = async (filePath: string, options: ExcelInputOptionsNode = {})
  *   })
  * ```
  */
-const $toExcel = (df: NDframe | DataFrame | Series, options?: ExcelOutputOptionsNode) => {
-    let {
-        filePath,
-        sheetName,
-        writingOptions
-    } = { filePath: "./output.xlsx", sheetName: "Sheet1", ...options }
+const $toExcel = (
+  df: NDframe | DataFrame | Series,
+  options?: ExcelOutputOptionsNode
+) => {
+  let { filePath, sheetName, writingOptions } = {
+    filePath: "./output.xlsx",
+    sheetName: "Sheet1",
+    ...options,
+  };
 
-    if (!(filePath.endsWith(".xlsx"))) {
-        filePath = filePath + ".xlsx"
-    }
-    let data;
+  if (!filePath.endsWith(".xlsx")) {
+    filePath = filePath + ".xlsx";
+  }
+  let data;
 
-    if (df.$isSeries) {
-        const row = df.values as ArrayType1D
-        const col = df.columns
-        data = [col, ...(row.map(x => [x]))]
-    } else {
-        const row = df.values as ArrayType2D
-        const cols = df.columns
-        data = [cols, ...row]
-    }
+  if (df.$isSeries) {
+    const row = df.values as ArrayType1D;
+    const col = df.columns;
+    data = [col, ...row.map((x) => [x])];
+  } else {
+    const row = df.values as ArrayType2D;
+    const cols = df.columns;
+    data = [cols, ...row];
+  }
 
-    const worksheet = utils.aoa_to_sheet(data);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, worksheet, sheetName);
-    writeFile(wb, `${filePath}`, writingOptions);
+  const worksheet = utils.aoa_to_sheet(data);
+  const wb = utils.book_new();
+  utils.book_append_sheet(wb, worksheet, sheetName);
+  writeFile(wb, `${filePath}`, writingOptions);
 };
 
-export {
-    $readExcel,
-    $toExcel
-}
+export { $readExcel, $toExcel };
